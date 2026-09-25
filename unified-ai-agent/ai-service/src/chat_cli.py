@@ -16,16 +16,18 @@ from src.llm.client import (
 from src.tools.rag_tool import SchemeSearchTool
 from src.tools.mysql_tool import CitizenProfileTool
 from src.tools.api_tool import ApplicationStatusTool
+from src.tools.document_tool import DocumentAnalysisTool
 from src.agent.tool_registry import ToolRegistry
 from src.agent.agent import AgentOrchestrator
 
 
 def create_default_tool_registry(retriever: SchemeRetriever) -> ToolRegistry:
-    """Instantiate and register all available M3 tools."""
+    """Instantiate and register all available tools (M3 + M4)."""
     registry = ToolRegistry()
     registry.register(SchemeSearchTool(retriever=retriever))
     registry.register(CitizenProfileTool())
     registry.register(ApplicationStatusTool())
+    registry.register(DocumentAnalysisTool())
     return registry
 
 
@@ -63,12 +65,13 @@ def start_interactive_chat(retrieval_only: bool = False, query: Optional[str] = 
     settings = get_settings()
 
     print("=" * 70)
-    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (MILESTONE 3)")
+    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (MILESTONES 3 & 4)")
     print("=" * 70)
     print("Available tools:")
     print("  - Government Scheme Search (RAG)")
     print("  - Citizen Profile (Demo/MySQL interface)")
     print("  - Application Status (Demo/API interface)")
+    print("  - Document Analysis (Document AI / OCR interface)")
     print("=" * 70)
     print("Connecting to verified scheme vector store...")
 

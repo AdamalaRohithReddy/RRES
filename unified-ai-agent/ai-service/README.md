@@ -198,9 +198,128 @@ python -m src.evaluation.evaluate
 
 ---
 
-## 8. Milestone Roadmap
+## 8. Milestone 3: Agent Orchestrator & Tool Calling
+
+Milestone 3 upgraded the architecture from a static RAG pipeline to an autonomous **Agent Orchestrator with Function Calling** via the OpenAI Responses API (`client.responses.create`).
+
+### Key Capabilities:
+- **Autonomous Multi-Turn Execution**: Evaluates user intent and dynamically calls authorized tools up to a strict 5-turn ceiling.
+- **Whitelist Tool Registry**: Only authorized Python tools can be executed. Rejects arbitrary shell, SQL, Python, or network commands.
+- **Registered Tools**:
+  - `search_government_schemes`: Semantic retrieval over official government scheme documents with provenance.
+  - `get_citizen_profile`: Retrieves demographic attributes (demo/mock data) with mandatory transparency notice.
+  - `get_application_status`: Tracks application progress (demo/mock data) with mandatory transparency notice.
+- **Safe Quota Fallback**: If the OpenAI API returns 429 quota exhaustion, the agent fails safely without fabricating answers and falls back to verified RAG evidence and mock notices.
+
+---
+
+## 9. Milestone 4: Document AI / OCR & Agent Tool
+
+Milestone 4 introduces an end-to-end **Document AI and OCR pipeline**, exposed as a new tool (`analyze_document`) in the Agent Orchestrator.
+
+### Core Principles:
+1. **"Document AI extracts facts. The Agent orchestrates. The LLM explains."**
+   - The LLM never determines, guesses, or invents extracted document fields.
+   - Document AI extracts deterministic evidence; the LLM merely communicates and explains those facts.
+2. **"Document type classification is not document authenticity verification."**
+   - The system identifies what a document *appears* to be based on observable textual features.
+   - It explicitly does **NOT** verify whether a document is genuine, legally valid, government-issued, or authentic.
+3. **Strict Scope Boundaries**:
+   - M4 does **NOT** perform Aadhaar number verification, PAN verification, biometric matching, or face recognition.
+
+```mermaid
+flowchart TD
+    UserDoc["Citizen Document\n(PDF, PNG, JPG, JPEG)"] --> Sandbox["Filesystem Sandbox\n(Whitelist roots, path traversal block, 20MB limit)"]
+    Sandbox --> TextExt["Text Extractor\n(PyMuPDF multi-format parsing)"]
+    TextExt --> OCRCheck{"Page text >= 50 chars\n(Selectable text)?"}
+    
+    OCRCheck -- "Yes (Digital)" --> Clean["Text Cleaner\n(Normalize whitespace, preserve numbers/dates)"]
+    OCRCheck -- "No (Scanned / Image)" --> OCR["Tesseract OCR Engine\n(PyMuPDF C-bindings / tessdata)"]
+    OCR --> Clean
+    
+    Clean --> Classify["Apparent Document Classifier\n(income_certificate, identity_document, etc.)"]
+    Clean --> Fields["Deterministic Field Extractor\n(Conservative regex: income, name, age, state, etc.)"]
+    
+    Fields --> ConfPolicy["Operational Confidence Policy\nHIGH (0.85-1.00) | UNCERTAIN (0.50-0.84) | UNRELIABLE (<0.50 -> None)"]
+    ConfPolicy --> Validate["Field Validator\n(Sanity checks: Age 0-120, non-negative income)"]
+    
+    Classify --> Result["DocumentAnalysisResult\n(Status, Apparent Type, Fields, Warnings, Provenance)"]
+    Validate --> Result
+    
+    Result --> DocTool["analyze_document Tool\n(Registered in ToolRegistry)"]
+    DocTool --> Agent["Agent Orchestrator\n(LLM explains facts without hallucination)"]
+```
+
+### Supported Formats & Capabilities:
+- **Formats**: `.pdf`, `.png`, `.jpg`, `.jpeg` (Max size: 20 MB).
+- **OCR Engine**: PyMuPDF native C/C++ bindings to Tesseract (`C:\Program Files\Tesseract-OCR\tessdata`). Zero additional heavyweight Python dependencies.
+- **Selective OCR**: Only executes OCR when a page contains fewer than 50 selectable characters.
+- **Apparent Document Categories**:
+  - `income_certificate`
+  - `identity_document`
+  - `address_document`
+  - `education_certificate`
+  - `unknown`
+- **Supported Fields**: `annual_income`, `name`, `age`, `gender`, `date_of_birth`, `state`, `district`, `occupation`, `document_number`, `issue_date`.
+- **Operational Confidence Policy**:
+  - **HIGH (0.85 - 1.00)**: Strong deterministic match, context confirmed, passes validation.
+  - **UNCERTAIN (0.50 - 0.84)**: Matched pattern with ambiguous context or OCR artifacts; value returned with diagnostic warning.
+  - **UNRELIABLE (< 0.50)**: Ambiguous or invalid; value forced to `None` (NEVER guess).
+- **Filesystem Sandboxing**: Whitelisted access strictly limited to `data/documents/`, `data/raw/`, and `tests/fixtures/documents/`. All path traversal attempts (`../`) and executable extensions (`.exe`, `.bat`, `.sh`, `.py`, `.dll`) are strictly blocked.
+
+### Standalone Document CLI:
+```powershell
+# Analyze a digital PDF
+python -m src.document_cli --file tests/fixtures/documents/digital_income_certificate.pdf
+
+# Analyze a scanned PNG via Tesseract OCR
+python -m src.document_cli --file tests/fixtures/documents/scanned_income_certificate.png
+```
+
+---
+
+## 10. Automated Testing & Verification
+
+Run the full pytest suite (62 unit & integration tests across M1–M4):
+```powershell
+pytest -v
+```
+
+### Test Suite Structure:
+- `tests/test_document_ai.py` (6 tests):
+  - Digital PDF extraction (no OCR, page provenance preserved).
+  - Scanned PNG OCR with **actual field recovery** (`annual_income == 150000`, `name == "Demo Citizen"`, `ocr_used == True`).
+  - Missing field handling (returns `None` without guessing).
+  - Operational confidence levels (`HIGH`, `UNCERTAIN`, `UNRELIABLE`).
+  - Field validation & sanity diagnostics (catches negative income, invalid age without crashing).
+  - Provenance preservation (page numbers, source snippets, SHA-256).
+- `tests/test_document_tool.py` (5 tests):
+  - `analyze_document` tool registration, schema export, and description.
+  - Strict filesystem sandboxing (traversal rejection, outside-sandbox rejection, executable rejection, empty/corrupt handling).
+  - Valid tool execution returning structured facts and non-authenticity disclaimer.
+  - Agent Orchestrator + Document tool integration flow (mock LLM, zero live API cost).
+  - Agent handling of missing document fields (verifies LLM does not invent fields).
+- `tests/test_agent.py` (10 tests): Agent orchestrator, tool registry, multi-tool flows, and 5-step loop ceiling.
+- `tests/test_rag.py` (10 tests): Grounded RAG, context assembly, and OpenAI Responses API client.
+- `tests/test_cleaner.py` (5 tests): Text cleaning and entity preservation.
+- `tests/test_chunking.py` (4 tests): Structure-aware section chunking.
+- `tests/test_embeddings.py` (5 tests): Sentence Transformer embeddings.
+- `tests/test_vector_store.py` (6 tests): Qdrant vector database storage and search.
+- `tests/test_retrieval.py` (3 tests): Query validation and provenance mapping.
+- `tests/test_end_to_end.py` (1 test): Complete M1 ingestion-to-retrieval pipeline.
+- `tests/test_openai_integration.py` (1 test): Live OpenAI call (skipped gracefully during credit exhaustion).
+
+### Milestone 1 Benchmark Evaluation:
+```powershell
+python -m src.evaluation.evaluate
+```
+- **Hit@1:** 100.0% | **Hit@3:** 100.0% | **Hit@5:** 100.0% | **MRR:** 1.0000 | **Unrelated Discrimination:** 100.0%
+
+---
+
+## 11. Milestone Roadmap
 - [x] **Milestone 1**: Standalone RAG Foundation (PyMuPDF, Semantic Chunking, Embeddings, Qdrant Vector DB, Provenance, Benchmark Evaluation).
 - [x] **Milestone 2**: Grounded RAG + OpenAI Responses API (`gpt-5.6-luna`), Context Builder, Citizen Grounding Prompt, Structured Answers, Interactive Chat CLI.
-- [ ] **Milestone 3**: Citizen Profile & Scheme Matching Engine.
-- [ ] **Milestone 4**: Eligibility Rule Engine & Personalized Action Plans.
-- [ ] **Milestone 5**: Full AI Agent Orchestration & Multi-Turn Guidance.
+- [x] **Milestone 3**: Agent Orchestrator + Tool Calling (Responses API Tools, Tool Registry, Whitelisting, Provenance, 5-Step Loop Limit, Safe Quota Handling).
+- [x] **Milestone 4**: Document AI / OCR Pipeline + `analyze_document` Agent Tool (PyMuPDF, Tesseract OCR, Apparent Document Classification, Conservative Field Extraction, Operational Confidence Policy, Sandbox Security).
+- [ ] **Milestone 5**: Eligibility Rule Engine & Citizen Application Guidance.

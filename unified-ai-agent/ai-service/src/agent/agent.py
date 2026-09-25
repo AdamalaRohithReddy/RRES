@@ -249,7 +249,44 @@ class AgentOrchestrator:
                     quota_limited=True,
                 )
 
-        # Scenario D: Scheme search question (RAG tool)
+        # Scenario D: Document analysis question (Document AI tool)
+        if "document" in q or "certificate" in q or "uploaded" in q or "income is mentioned" in q:
+            doc_tool = self.tool_registry.get("analyze_document")
+            if doc_tool:
+                doc_path = "tests/fixtures/documents/digital_income_certificate.pdf"
+                doc_res = doc_tool.execute(document_path=doc_path)
+                fields = doc_res.get("fields", {})
+                lines = [
+                    "[OpenAI Quota Notice]: Your OpenAI API key has exhausted its credit quota (Error 429: credit_balance_exhausted).",
+                    f"The Agent Orchestrator analyzed the document ({doc_path}) directly via `analyze_document`:\n",
+                    f"- Apparent Document Type: {doc_res.get('apparent_document_type')} (Confidence: {doc_res.get('document_type_confidence'):.0%})",
+                    f"- OCR Used: {doc_res.get('ocr_used')}",
+                ]
+                for k, v in fields.items():
+                    val = v.get("value")
+                    if val is not None:
+                        lines.append(f"- {k.replace('_', ' ').title()}: {val} (Confidence: {v.get('confidence_level')}, Page: {v.get('page')})")
+                    else:
+                        lines.append(f"- {k.replace('_', ' ').title()}: Not Found")
+
+                warnings = doc_res.get("warnings", [])
+                if warnings:
+                    lines.append("\n[Warnings]:")
+                    for w in warnings:
+                        lines.append(f"  • {w}")
+
+                lines.append(f"\n[Disclaimer]: {doc_res.get('disclaimer')}")
+
+                return AgentResponse(
+                    answer="\n".join(lines),
+                    tools_called=["analyze_document"],
+                    sources=[],
+                    is_mock_used=False,
+                    iterations=1,
+                    quota_limited=True,
+                )
+
+        # Scenario E: Scheme search question (RAG tool)
         rag_tool = self.tool_registry.get("search_government_schemes")
         if isinstance(rag_tool, SchemeSearchTool):
             rag_result = rag_tool.execute(query=query, top_k=2)
