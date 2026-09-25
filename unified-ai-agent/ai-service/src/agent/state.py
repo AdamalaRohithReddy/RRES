@@ -22,6 +22,7 @@ class AgentState(BaseModel):
     final_answer: Optional[str] = Field(default=None, description="Final natural-language response generated")
     sources: List[Dict[str, Any]] = Field(default_factory=list, description="Verified sources gathered by tools")
     is_mock_used: bool = Field(default=False, description="Flag indicating if any mock tool data was referenced")
+    detected_needs: List[Dict[str, Any]] = Field(default_factory=list, description="Structured citizen needs detected in this interaction")
 
     def has_reached_limit(self) -> bool:
         """Check if maximum allowed agent iterations have been exhausted."""
@@ -42,11 +43,18 @@ class AgentState(BaseModel):
             for res in result.get("results", []):
                 self.sources.append(res)
 
+        # Track detected needs if need detection tool was called
+        if tool_name == "detect_citizen_needs" and isinstance(result, dict):
+            for need_item in result.get("needs", []):
+                if need_item not in self.detected_needs:
+                    self.detected_needs.append(need_item)
+
         # Track mock data usage
         if result.get("is_mock"):
             self.is_mock_used = True
 
         return step
+
 
     def get_tool_call_names(self) -> List[str]:
         """Return list of all tool names executed in this interaction."""

@@ -27,6 +27,10 @@ class ToolRegistry:
         """Retrieve a registered tool by name."""
         return self._tools.get(name)
 
+    def __contains__(self, name: str) -> bool:
+        """Check if a tool name is registered in the registry."""
+        return name in self._tools
+
     def list_tool_names(self) -> List[str]:
         """Return names of all currently registered tools."""
         return list(self._tools.keys())

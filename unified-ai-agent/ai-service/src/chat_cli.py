@@ -17,21 +17,36 @@ from src.tools.rag_tool import SchemeSearchTool
 from src.tools.mysql_tool import CitizenProfileTool
 from src.tools.api_tool import ApplicationStatusTool
 from src.tools.document_tool import DocumentAnalysisTool
+from src.tools.eligibility_tool import EligibilityCheckTool
+from src.tools.need_tool import NeedDetectionTool
+from src.needs.tracker import NeedTracker
+from src.needs.detector import NeedDetector
 from src.agent.tool_registry import ToolRegistry
 from src.agent.agent import AgentOrchestrator
 
 
 def create_default_tool_registry(retriever: SchemeRetriever) -> ToolRegistry:
-    """Instantiate and register all available tools (M3 + M4)."""
+    """Instantiate and register all available tools (M3, M4, M5, M6)."""
     registry = ToolRegistry()
     registry.register(SchemeSearchTool(retriever=retriever))
     registry.register(CitizenProfileTool())
     registry.register(ApplicationStatusTool())
     registry.register(DocumentAnalysisTool())
+    registry.register(EligibilityCheckTool())
+    registry.register(NeedDetectionTool())
     return registry
 
 
-def _handle_query(query: str, orchestrator: Optional[AgentOrchestrator], retriever: SchemeRetriever) -> None:
+
+from src.needs.models import Need
+
+
+def _handle_query(
+    query: str,
+    orchestrator: Optional[AgentOrchestrator],
+    retriever: SchemeRetriever,
+    tracker: Optional[NeedTracker] = None,
+) -> None:
     """Execute a single query through either agent orchestrator or direct retrieval."""
     if orchestrator is not None:
         response = orchestrator.run(query=query)
@@ -42,6 +57,18 @@ def _handle_query(query: str, orchestrator: Optional[AgentOrchestrator], retriev
             for s in response.sources:
                 print(f"- {s.get('scheme', 'Official Scheme')}")
                 print(f"  Page {s.get('page', 1)} — {s.get('section', 'General')} ({s.get('source', 'Official publication')})")
+
+        # M6 Cumulative Session Need Tracking
+        if tracker is not None and getattr(response, "detected_needs", None):
+            try:
+                new_needs = [Need.model_validate(n) for n in response.detected_needs]
+                tracker.add_needs(new_needs)
+                active_cats = [c.value for c in tracker.get_categories()]
+                if active_cats:
+                    print(f"\n[Session Cumulative Needs]: {', '.join(active_cats)}")
+            except Exception:
+                pass
+
         print("-" * 70 + "\n")
     else:
         results = retriever.retrieve(query=query, top_k=2)
@@ -65,13 +92,15 @@ def start_interactive_chat(retrieval_only: bool = False, query: Optional[str] = 
     settings = get_settings()
 
     print("=" * 70)
-    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (MILESTONES 3 & 4)")
+    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (M3, M4, M5, M6)")
     print("=" * 70)
     print("Available tools:")
     print("  - Government Scheme Search (RAG)")
     print("  - Citizen Profile (Demo/MySQL interface)")
     print("  - Application Status (Demo/API interface)")
     print("  - Document Analysis (Document AI / OCR interface)")
+    print("  - Eligibility Assessment (Deterministic Rule Engine)")
+    print("  - Multi-Need Detection (Problem Decomposition)")
     print("=" * 70)
     print("Connecting to verified scheme vector store...")
 
@@ -107,10 +136,12 @@ def start_interactive_chat(retrieval_only: bool = False, query: Optional[str] = 
 
     print(f"\n[READY] Assistant online in [{mode_label}] mode.")
 
+    need_tracker = NeedTracker()
+
     try:
         if query:
             print(f"\nCitizen Query > {query}")
-            _handle_query(query, orchestrator, retriever)
+            _handle_query(query, orchestrator, retriever, tracker=need_tracker)
             return
 
         print("Ask any question about schemes, profile, or application status. Type 'exit' or 'q' to stop.\n")
@@ -123,7 +154,7 @@ def start_interactive_chat(retrieval_only: bool = False, query: Optional[str] = 
                     print("\nThank you for using the Citizen Scheme Assistant. Goodbye!")
                     break
 
-                _handle_query(user_input, orchestrator, retriever)
+                _handle_query(user_input, orchestrator, retriever, tracker=need_tracker)
 
             except InvalidQueryError as e:
                 print(f"[Input Error]: {e}\n")

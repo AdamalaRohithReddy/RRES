@@ -21,6 +21,7 @@ class AgentResponse(BaseModel):
     is_mock_used: bool = Field(default=False, description="Flag indicating if mock/demo data was referenced")
     iterations: int = Field(default=0, description="Number of agent loop iterations executed")
     quota_limited: bool = Field(default=False, description="True if an API quota limitation prevented live generation")
+    detected_needs: List[Dict[str, Any]] = Field(default_factory=list, description="List of detected citizen needs")
 
 
 class AgentOrchestrator:
@@ -85,9 +86,9 @@ class AgentOrchestrator:
                     tools=tool_defs,
                     previous_response_id=prev_response_id,
                 )
-            except LLMGenerationError as e:
+            except (LLMGenerationError, Exception) as e:
                 err_str = str(e)
-                if "credit_balance_exhausted" in err_str or "insufficient_quota" in err_str:
+                if "credit_balance_exhausted" in err_str or "insufficient_quota" in err_str or "429" in err_str:
                     self._log("[AGENT] Notice: OpenAI API quota exhausted (Error 429).")
                     return self._handle_quota_exhausted_fallback(clean_query, state)
                 raise
@@ -144,6 +145,7 @@ class AgentOrchestrator:
             sources=state.sources,
             is_mock_used=state.is_mock_used,
             iterations=state.current_iteration,
+            detected_needs=state.detected_needs,
         )
 
     def _handle_quota_exhausted_fallback(self, query: str, state: AgentState) -> AgentResponse:
@@ -286,7 +288,92 @@ class AgentOrchestrator:
                     quota_limited=True,
                 )
 
-        # Scenario E: Scheme search question (RAG tool)
+        # Scenario E: Eligibility evaluation question (Eligibility Engine tool)
+        if any(w in q for w in ["eligible", "eligibility", "qualify", "criteria met", "check my"]):
+            elig_tool = self.tool_registry.get("check_eligibility")
+            if elig_tool:
+                scheme_id = "TELANGANA_YOUTH_SUPPORT" if ("telangana" in q or "youth" in q) else "SISFS"
+                doc_path = (
+                    "tests/fixtures/documents/digital_income_certificate.pdf"
+                    if ("document" in q or "certificate" in q)
+                    else None
+                )
+                elig_res = elig_tool.execute(
+                    scheme_id=scheme_id, citizen_id="demo-user", document_path=doc_path
+                )
+                lines = [
+                    "[OpenAI Quota Notice]: Your OpenAI API key has exhausted its credit quota (Error 429: credit_balance_exhausted).",
+                    "The Agent Orchestrator evaluated eligibility directly via `check_eligibility`:\n",
+                    f"- Scheme: {elig_res.get('scheme_name')}",
+                    f"- Final Assessment: [{elig_res.get('eligibility_status')}]",
+                    f"- Rules Passed: {elig_res.get('passed_rules_count')} | Failed: {elig_res.get('failed_rules_count')} | Inconclusive: {elig_res.get('unknown_rules_count')}",
+                    "\n[Summary Reasons]:",
+                ]
+                for r in elig_res.get("summary_reasons", []):
+                    lines.append(f"  * {r}")
+                next_steps = elig_res.get("next_steps", [])
+                if next_steps:
+                    lines.append("\n[Recommended Next Steps]:")
+                    for s in next_steps:
+                        lines.append(f"  -> {s}")
+                warnings = elig_res.get("warnings", [])
+                if warnings:
+                    lines.append("\n[Warnings & Discrepancies]:")
+                    for w in warnings:
+                        lines.append(f"  ! {w}")
+                lines.append(f"\n[Disclaimer]: {elig_res.get('disclaimer')}")
+
+                return AgentResponse(
+                    answer="\n".join(lines),
+                    tools_called=["check_eligibility"],
+                    sources=[],
+                    is_mock_used=elig_res.get("is_synthetic_scheme", False),
+                    iterations=1,
+                    quota_limited=True,
+                )
+
+        # Scenario F: Multi-Need Detection question (Need Detection tool)
+        if any(w in q for w in ["lost my job", "need housing", "school fees", "my children", "unemployed", "need help with", "low income", "need support", "need help"]):
+            need_tool = self.tool_registry.get("detect_citizen_needs")
+            if need_tool:
+                need_res = need_tool.execute(text=query)
+                needs_list = need_res.get("needs", [])
+                lines = [
+                    "[OpenAI Quota Notice]: Your OpenAI API key has exhausted its credit quota (Error 429: credit_balance_exhausted).",
+                    "The Agent Orchestrator analyzed your requirements directly via `detect_citizen_needs`:\n",
+                    f"- Total Needs Detected: {need_res.get('total_needs', 0)}",
+                ]
+                for idx, n in enumerate(needs_list, start=1):
+                    lines.append(f"  [{idx}] {n.get('category').upper()} ({n.get('confidence_level')}, {n.get('explicit_or_inferred')})")
+                    lines.append(f"      Description: {n.get('description')}")
+                    if n.get("evidence_span"):
+                        lines.append(f"      Evidence: \"{n.get('evidence_span')}\"")
+
+                prompts = need_res.get("clarification_prompts", [])
+                if prompts:
+                    lines.append("\n[Clarification Needed]:")
+                    for p in prompts:
+                        lines.append(f"  ? {p}")
+
+                queries = need_res.get("suggested_scheme_queries", {})
+                if queries:
+                    lines.append("\n[Recommended Search Domains]:")
+                    for cat, q_str in queries.items():
+                        lines.append(f"  -> {cat.upper()}: \"{q_str}\"")
+
+                lines.append(f"\n[Disclaimer]: {need_res.get('disclaimer')}")
+
+                return AgentResponse(
+                    answer="\n".join(lines),
+                    tools_called=["detect_citizen_needs"],
+                    sources=[],
+                    is_mock_used=False,
+                    iterations=1,
+                    quota_limited=True,
+                    detected_needs=needs_list,
+                )
+
+        # Scenario G: Scheme search question (RAG tool)
         rag_tool = self.tool_registry.get("search_government_schemes")
         if isinstance(rag_tool, SchemeSearchTool):
             rag_result = rag_tool.execute(query=query, top_k=2)
