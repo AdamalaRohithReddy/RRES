@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# HuggingFace & Torch
+.cache/
+
+# Local Vector DB data (keep raw data committed or ignored as needed)
+unified-ai-agent/ai-service/data/processed/qdrant_storage/
+
+# Environment files
+.env

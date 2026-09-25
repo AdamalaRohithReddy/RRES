@@ -1,0 +1,12 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/unified-ai-agent/ai-service/.venv/Scripts/python.exe",
+  "python.testing.pytestArgs": [
+    "unified-ai-agent/ai-service/tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/unified-ai-agent/ai-service"
+  ],
+  "terminal.integrated.cwd": "${workspaceFolder}/unified-ai-agent/ai-service"
+}

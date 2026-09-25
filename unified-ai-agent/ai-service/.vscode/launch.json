@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Query APY Scheme",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.query_cli",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--query",
+        "What is the entry age for Atal Pension Yojana?",
+        "--top-k",
+        "3"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Run Benchmark Evaluation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.evaluation.evaluate",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Run All Pytest Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "tests",
+        "-v"
+      ],
+      "console": "integratedTerminal"
+    }
+  ]
+}
