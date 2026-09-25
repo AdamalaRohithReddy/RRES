@@ -70,6 +70,7 @@ class EligibilityCheckTool(BaseTool):
         citizen_id: Optional[str] = "demo-user",
         document_path: Optional[str] = None,
         override_fields: Optional[Dict[str, Any]] = None,
+        api_data: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """Execute deterministic eligibility evaluation with multi-source evidence harvesting."""
@@ -92,12 +93,13 @@ class EligibilityCheckTool(BaseTool):
                         f"Document analysis warning for '{document_path}': {doc_res.get('error', 'Unknown error')}"
                     )
 
-            # 3. Aggregate evidence with conflict resolution
+            # 3. Aggregate evidence with conflict resolution (including Government API evidence)
             harvester = EvidenceHarvester()
             evidence_store = harvester.harvest(
                 profile_data=profile_data,
                 document_data=doc_data,
                 user_overrides=override_fields,
+                api_data=api_data,
             )
 
             all_warnings = harvester.warnings + doc_warnings

@@ -36,6 +36,7 @@ class EvidenceSource(str, Enum):
     CITIZEN_PROFILE = "CITIZEN_PROFILE"
     DOCUMENT_AI = "DOCUMENT_AI"
     USER_INPUT = "USER_INPUT"
+    GOVERNMENT_API = "GOVERNMENT_API"
 
 
 class EligibilityEvidence(BaseModel):
@@ -49,6 +50,10 @@ class EligibilityEvidence(BaseModel):
     source_reference: Optional[str] = None
     page: Optional[int] = None
     source_text: Optional[str] = None
+    fact_type: Optional[str] = None
+    verification_status: Optional[str] = None
+    conflict_detected: bool = False
+    conflicting_values: Optional[Dict[str, Any]] = None
 
 
 class EligibilityRule(BaseModel):

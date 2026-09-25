@@ -19,6 +19,7 @@ from src.tools.api_tool import ApplicationStatusTool
 from src.tools.document_tool import DocumentAnalysisTool
 from src.tools.eligibility_tool import EligibilityCheckTool
 from src.tools.need_tool import NeedDetectionTool
+from src.tools.government_api_tool import GovernmentSchemeDiscoveryTool
 from src.needs.tracker import NeedTracker
 from src.needs.detector import NeedDetector
 from src.agent.tool_registry import ToolRegistry
@@ -26,7 +27,7 @@ from src.agent.agent import AgentOrchestrator
 
 
 def create_default_tool_registry(retriever: SchemeRetriever) -> ToolRegistry:
-    """Instantiate and register all available tools (M3, M4, M5, M6)."""
+    """Instantiate and register all available tools (M3, M4, M5, M6, M8)."""
     registry = ToolRegistry()
     registry.register(SchemeSearchTool(retriever=retriever))
     registry.register(CitizenProfileTool())
@@ -34,6 +35,7 @@ def create_default_tool_registry(retriever: SchemeRetriever) -> ToolRegistry:
     registry.register(DocumentAnalysisTool())
     registry.register(EligibilityCheckTool())
     registry.register(NeedDetectionTool())
+    registry.register(GovernmentSchemeDiscoveryTool())
     return registry
 
 
@@ -92,12 +94,12 @@ def start_interactive_chat(retrieval_only: bool = False, query: Optional[str] = 
     settings = get_settings()
 
     print("=" * 70)
-    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (M3, M4, M5, M6)")
+    print("  CITIZEN SCHEME AI ASSISTANT — AGENT MODE (M3, M4, M5, M6, M7)")
     print("=" * 70)
     print("Available tools:")
     print("  - Government Scheme Search (RAG)")
-    print("  - Citizen Profile (Demo/MySQL interface)")
-    print("  - Application Status (Demo/API interface)")
+    print("  - Citizen Profile (Relational MySQL Database)")
+    print("  - Application Status (Relational MySQL Database)")
     print("  - Document Analysis (Document AI / OCR interface)")
     print("  - Eligibility Assessment (Deterministic Rule Engine)")
     print("  - Multi-Need Detection (Problem Decomposition)")

@@ -20,8 +20,9 @@ class EvidenceHarvester:
         profile_data: Optional[Dict[str, Any]] = None,
         document_data: Optional[Union[Dict[str, Any], DocumentAnalysisResult]] = None,
         user_overrides: Optional[Dict[str, Any]] = None,
+        api_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, EligibilityEvidence]:
-        """Aggregate evidence from citizen profile, document analysis, and explicit overrides."""
+        """Aggregate evidence from citizen profile, document analysis, explicit overrides, and government APIs."""
         # 1. Ingest Citizen Profile
         if profile_data:
             self._ingest_profile(profile_data)
@@ -30,7 +31,11 @@ class EvidenceHarvester:
         if document_data:
             self._ingest_document(document_data)
 
-        # 3. Ingest User Overrides
+        # 3. Ingest Government API verified facts with conflict policy (M8)
+        if api_data:
+            self._ingest_government_api(api_data)
+
+        # 4. Ingest User Overrides
         if user_overrides:
             self._ingest_overrides(user_overrides)
 
@@ -57,6 +62,8 @@ class EvidenceHarvester:
                 confidence=0.90,
                 confidence_level="HIGH",
                 source_reference=f"citizen_profile:{citizen_id}",
+                fact_type="LOCAL_STORED_FACT",
+                verification_status="UNVERIFIED",
             )
 
     def _ingest_document(self, document_data: Union[Dict[str, Any], DocumentAnalysisResult]) -> None:
@@ -163,4 +170,56 @@ class EvidenceHarvester:
                 confidence=1.0,
                 confidence_level="HIGH",
                 source_reference="user_override",
+            )
+
+    def _ingest_government_api(self, api_data: Dict[str, Any]) -> None:
+        """Process externally verified facts from official Government APIs and reconcile conflicts (M8)."""
+        data = api_data
+        provider = data.get("provider", "Official Government API")
+        endpoint = data.get("endpoint_identifier", "government_api")
+        ver_status = data.get("verification_status", "CONTRACT_VERIFIED")
+
+        if "payload" in data and isinstance(data["payload"], dict):
+            data = data["payload"]
+
+        for k, v in data.items():
+            if k in {"status", "data_source", "verification_status", "provider", "retrieved_at", "source_url", "source_system"}:
+                continue
+            if v is None:
+                continue
+
+            existing = self.evidence_store.get(k)
+            conflict_detected = False
+            conflicting_values = None
+
+            if existing is not None and existing.value is not None:
+                norm_existing, _ = ValueNormalizer.normalize_for_comparison(existing.value, type(v))
+                norm_api, _ = ValueNormalizer.normalize_for_comparison(v, type(norm_existing) if norm_existing is not None else str)
+
+                if norm_existing != norm_api:
+                    conflict_detected = True
+                    conflicting_values = {
+                        "prior_value": existing.value,
+                        "prior_source": existing.source.value,
+                        "api_verified_value": v,
+                    }
+                    msg = (
+                        f"Evidence Conflict on '{k}': Prior {existing.source.value} recorded '{existing.value}', "
+                        f"but official Government API verified value is '{v}'. "
+                        f"Externally verified government evidence prioritized for statutory assessment with discrepancy flag."
+                    )
+                    self.warnings.append(msg)
+
+            self.evidence_store[k] = EligibilityEvidence(
+                field_name=k,
+                value=v,
+                raw_value=v,
+                source=EvidenceSource.GOVERNMENT_API,
+                confidence=1.0,
+                confidence_level="HIGH",
+                source_reference=f"gov_api:{endpoint}:{provider}",
+                fact_type="EXTERNALLY_VERIFIED_FACT",
+                verification_status=ver_status,
+                conflict_detected=conflict_detected,
+                conflicting_values=conflicting_values,
             )

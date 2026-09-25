@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "data": {
+    "certificate_id": "TS-INC-2026-0091823",
+    "certificate_type": "INCER",
+    "holder_name": "Ramesh Kumar",
+    "annual_income": 240000.0,
+    "state": "Telangana",
+    "issuing_authority": "Tahsildar, Serilingampally Mandal, Rangareddy District",
+    "issue_date": "2026-04-10",
+    "valid_until": "2027-03-31",
+    "verification_status": "VALID",
+    "source_system": "MeeSeva Telangana / DigiLocker National Gateway"
+  }
+}

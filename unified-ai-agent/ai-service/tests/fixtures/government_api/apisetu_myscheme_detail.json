@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "data": {
+    "scheme_id": "MYSCHEME-ENT-003",
+    "scheme_name": "Startup India Seed Fund Scheme (SISFS)",
+    "nodal_ministry": "Department for Promotion of Industry and Internal Trade (DPIIT)",
+    "brief_description": "Financial assistance to early-stage startups for proof of concept, prototype development, product trials, and market entry.",
+    "target_beneficiaries": ["Tech Startups", "Entrepreneurs", "Innovators"],
+    "eligibility_tags": ["DPIIT Recognition", "Incorporation <= 2 Years", "Indian Promoter Shareholding >= 51%"],
+    "application_url": "https://www.startupindia.gov.in/",
+    "guidelines_document_url": "https://www.startupindia.gov.in/content/dam/invest-india/Templates/public/guidelines.pdf",
+    "level": "Central",
+    "max_funding_amount": "Up to Rs. 20 Lakhs as grant for PoC, up to Rs. 50 Lakhs via debt/convertible debentures.",
+    "documents_required": [
+      "DPIIT Certificate of Recognition",
+      "Certificate of Incorporation",
+      "Business Plan / PoC Pitch Deck",
+      "Shareholding Pattern Declaration"
+    ]
+  }
+}

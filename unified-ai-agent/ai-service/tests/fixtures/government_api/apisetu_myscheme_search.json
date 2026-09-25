@@ -1,0 +1,38 @@
+{
+  "status": "success",
+  "data": {
+    "total_records": 3,
+    "schemes": [
+      {
+        "scheme_id": "MYSCHEME-AGRI-001",
+        "scheme_name": "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
+        "nodal_ministry": "Ministry of Agriculture and Farmers Welfare",
+        "brief_description": "Income support of Rs. 6,000 per year in three equal installments to eligible farmer families.",
+        "target_beneficiaries": ["Small and Marginal Farmers", "Rural Landholders"],
+        "eligibility_tags": ["Landholding", "Farmer Family", "Non-Taxpayer"],
+        "application_url": "https://pmkisan.gov.in/",
+        "level": "Central"
+      },
+      {
+        "scheme_id": "MYSCHEME-EDU-002",
+        "scheme_name": "Post-Matric Scholarship for Students",
+        "nodal_ministry": "Ministry of Social Justice and Empowerment",
+        "brief_description": "Financial assistance to students from vulnerable categories pursuing post-matriculation or post-secondary stages.",
+        "target_beneficiaries": ["Students", "Low-Income Families"],
+        "eligibility_tags": ["Student", "Post-Matric", "Family Income <= 250000"],
+        "application_url": "https://scholarships.gov.in/",
+        "level": "Central"
+      },
+      {
+        "scheme_id": "MYSCHEME-ENT-003",
+        "scheme_name": "Startup India Seed Fund Scheme (SISFS)",
+        "nodal_ministry": "Department for Promotion of Industry and Internal Trade (DPIIT)",
+        "brief_description": "Financial assistance to early-stage startups for proof of concept, prototype development, product trials, and market entry.",
+        "target_beneficiaries": ["Tech Startups", "Entrepreneurs", "Innovators"],
+        "eligibility_tags": ["DPIIT Recognition", "Incorporation <= 2 Years", "Indian Promoter Shareholding >= 51%"],
+        "application_url": "https://www.startupindia.gov.in/",
+        "level": "Central"
+      }
+    ]
+  }
+}
