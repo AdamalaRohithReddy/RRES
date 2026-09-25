@@ -44,6 +44,10 @@ class Settings:
         self.default_top_k: int = int(os.getenv("DEFAULT_TOP_K", "5"))
         self.score_threshold: float = float(os.getenv("SCORE_THRESHOLD", "0.35"))
 
+        # OpenAI LLM settings (Milestone 2)
+        self.openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY", None)
+        self.openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
+
         # Ensure directories exist
         self.raw_data_dir.mkdir(parents=True, exist_ok=True)
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)

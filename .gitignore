@@ -22,3 +22,5 @@ unified-ai-agent/ai-service/data/processed/qdrant_storage/
 
 # Environment files
 .env
+.env.*
+!.env.example

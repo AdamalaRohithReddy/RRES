@@ -1,70 +1,47 @@
-# Unified AI Agent — AI Service (Milestone 1: RAG Foundation)
+# Unified AI Agent — AI Service (Milestone 1 & 2: RAG Foundation + OpenAI LLM)
 
 ## 1. Project Purpose
-The **Unified AI Agent for Citizen Financial & Social Support** is designed to help citizens identify, understand, and navigate government social security and welfare schemes using verified, authoritative government sources. 
+The **Unified AI Agent for Citizen Financial & Social Support** is designed to help citizens identify, understand, and navigate government social security and welfare schemes using verified, authoritative government sources.
 
-Milestone 1 establishes the **core RAG foundation** without introducing bloated frameworks. It focuses on high-precision document intelligence: extracting, cleaning, chunking, embedding, vector-indexing official scheme PDFs, and providing semantic retrieval with unbreakable source provenance (scheme name, page number, section, and official source URL).
-
----
-
-## 2. Milestone 1 Scope
-- Standalone Python AI service for document intelligence & RAG.
-- Ingestion of official government scheme PDFs using **PyMuPDF**.
-- Detection of text-based vs. scanned/image-based PDFs with an extensible OCR fallback hook.
-- Domain-preserving text cleaning (retaining eligibility conditions, currency symbols, percentages, age limits, and government terminology).
-- Semantic, structure-aware chunking preserving section boundaries and page numbers.
-- Configurable dense embeddings using **Sentence Transformers** (`all-MiniLM-L6-v2` by default).
-- Vector indexing and similarity search with metadata filtering in **Qdrant**.
-- Query retrieval returning similarity scores and full provenance.
-- Retrieval evaluation test suite covering 10 diverse categories with automated Hit@K and MRR metrics.
-- Comprehensive unit and end-to-end tests with pytest.
-
-> [!NOTE]
-> Scope Exclusions for Milestone 1: Spring Boot backend, React frontend, full OCR engine execution, conversational AI agents, and eligibility reasoning engines will be implemented in subsequent milestones.
+- **Milestone 1 (RAG Foundation)**: Established high-precision document intelligence: extracting, cleaning, structure-aware chunking, dense vector embedding, indexing into **Qdrant**, and semantic retrieval with unbreakable source provenance (scheme name, section, page number, and source URL).
+- **Milestone 2 (RAG + OpenAI LLM)**: Connects the verified retrieval engine to **OpenAI Responses API** (`gpt-5.6-luna`), generating grounded, citizen-friendly explanations strictly based on retrieved evidence without hallucinating facts.
 
 ---
 
-## 3. Architecture Overview
+## 2. Milestone 2 Architecture
+
+In this architecture, **Qdrant provides the authoritative evidence** from official government publications, while the **OpenAI LLM generates the grounded response** strictly adhering to that evidence.
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion ["1. Document Ingestion"]
-        A[Official Scheme PDF\ndata/raw/*.pdf] --> B[PDF Ingestion Engine\nPyMuPDF]
-        B --> C{Scanned Image\nDetection?}
-        C -- "Text density < threshold" --> D[Flag OCR Required\nExtractionStatus: SCANNED]
-        C -- "Normal text PDF" --> E[Text Cleaner\nPreserve domain entities]
-    end
-
-    subgraph Chunking ["2. Structure-Aware Chunking"]
-        E --> F[Semantic Chunker]
-        F --> G[Section Detector\nOverview, Eligibility, Benefits, Docs, etc.]
-        G --> H[Document Chunks\nwith Provenance Metadata]
-    end
-
-    subgraph Embeddings ["3. Dense Embeddings"]
-        H --> I[Configurable Embedder\nSentence Transformers]
-        I --> J[Normalized Dense Vectors\ne.g., 384-dim]
-    end
-
-    subgraph VectorStore ["4. Vector Database"]
-        J --> K[Qdrant Collection\nscheme_documents]
-        H -.-> K
-    end
-
-    subgraph Retrieval ["5. Semantic Retrieval"]
-        L[Natural Language Query] --> M[Query Embedder]
-        M --> N[Qdrant Similarity Search\nCosine Distance]
-        K --> N
-        N --> O[Top-k Retrieved Chunks\nScore + Text + Provenance]
-    end
+    User([Citizen Query]) --> Ret[SchemeRetriever\nSentence-Transformers Dense Search]
+    Qdrant[(Qdrant Vector DB\nVerified Scheme Chunks)] <--> Ret
+    Ret --> Check{Chunks pass\nthreshold >= 0.35?}
+    
+    Check -- "No chunks" --> SafeResp["Safe Fallback Response\n(No LLM call, 0 token cost)"]
+    Check -- "Yes (Top 3-5 Chunks)" --> CB[Context Builder\nStructured Provenance Blocks]
+    
+    CB --> Prompt[Grounding Prompt + User Prompt\nCITIZEN_RAG_SYSTEM_INSTRUCTIONS]
+    Prompt --> LLM[OpenAI Responses API\nClient: gpt-5.6-luna]
+    LLM --> Answer[Grounded Structured Answer\nAnswer Text + Source Citations]
+    
+    Answer --> Output([Citizen UI / CLI])
+    SafeResp --> Output
 ```
+
+### Core M2 Components:
+- **`src/llm/client.py`**: OpenAI client abstraction utilizing the official `openai` Python SDK Responses API (`client.responses.create`). Features secret sanitization to prevent API key leakage in logs or exceptions.
+- **`src/llm/prompts.py`**: Strong developer grounding instructions enforcing 9 strict citizen-safety rules (no extrapolation, exact numerical preservation, explicit declaration when evidence is missing, source citations).
+- **`src/rag/context_builder.py`**: Assembles retrieved chunks into distinct source blocks preserving scheme name, document ID, section, page numbers, similarity score, and text.
+- **`src/rag/answer_generator.py`**: Orchestrates retrieval, guards against below-threshold queries (zero LLM calls on irrelevant queries), and outputs a structured `GroundedAnswer`.
+- **`src/chat_cli.py`**: Interactive terminal chat interface supporting both full Grounded RAG + LLM and retrieval-only modes.
 
 ---
 
-## 4. Installation & Environment Setup
+## 3. Installation & Setup
 
 ### Prerequisites
-- Python 3.10+ (Tested on Python 3.14 on Windows)
+- Python 3.10+ (Verified on Python 3.14 on Windows)
 - Git
 
 ### 1. Initialize Virtual Environment
@@ -78,24 +55,30 @@ python -m venv .venv
 ```powershell
 pip install -r requirements.txt
 ```
+Dependencies: `pymupdf`, `sentence-transformers`, `qdrant-client`, `python-dotenv`, `pytest`, `pydantic`, `numpy`, `openai`.
 
 ---
 
-## 5. Configuration (`.env`)
-Copy `.env.example` to `.env`:
+## 4. Configuration (`.env`)
+
+> [!CAUTION]
+> **SECURITY WARNING: NEVER COMMIT `.env` TO GIT.**
+> Your `.env` contains local API secrets. Verify that `.gitignore` contains `.env`, `.env.*`, and `!.env.example`. Never paste your real API key into `.env.example` or commit it to GitHub.
+
+Create or update `.env` in `unified-ai-agent/ai-service/.env`:
 ```ini
+# ==========================================
+# AI Service Configuration
+# ==========================================
+
 # Embedding Configuration
 EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
 EMBEDDING_DEVICE=cpu
 EMBEDDING_DIMENSION=384
 
 # Qdrant Vector Store Configuration
-# Embedded local storage (zero external daemon required)
 QDRANT_PATH=./data/processed/qdrant_storage
 QDRANT_COLLECTION_NAME=scheme_documents
-# For remote Qdrant server:
-# QDRANT_URL=http://localhost:6333
-# QDRANT_API_KEY=
 
 # Retrieval Settings
 DEFAULT_TOP_K=5
@@ -105,142 +88,119 @@ SCORE_THRESHOLD=0.35
 RAW_DATA_DIR=./data/raw
 PROCESSED_DATA_DIR=./data/processed
 OCR_CHAR_THRESHOLD_PER_PAGE=50
+
+# OpenAI LLM Configuration (Milestone 2)
+OPENAI_API_KEY=your_actual_openai_api_key_here
+OPENAI_MODEL=gpt-5.6-luna
 ```
 
 ---
 
-## 6. How to Ingest an Official PDF
+## 5. Running the Grounded RAG Chat CLI
 
-Place your official government scheme document inside `data/raw/`:
+### Interactive RAG + LLM Chat
+Launch the interactive assistant in PowerShell:
 ```powershell
-# Ingest official guidelines using the CLI
+python -m src.chat_cli
+```
+
+Example interaction:
+```
+======================================================================
+  CITIZEN SCHEME AI ASSISTANT — GROUNDED RAG CHAT (MILESTONE 2)
+======================================================================
+Connecting to verified scheme vector store...
+[MODE] Grounded RAG active with OpenAI model: 'gpt-5.6-luna'
+
+[READY] Assistant online in [RAG + OpenAI LLM] mode.
+Ask any question about verified government schemes. Type 'exit' or 'q' to stop.
+
+Citizen Query > What are the eligibility criteria for a startup?
+
+Assistant:
+To be eligible under the Startup India Seed Fund Scheme, a startup must satisfy the following conditions:
+1. It must be recognized by DPIIT and incorporated not more than 2 years ago at the time of application.
+2. It must have a business idea to develop a product or service with market fit, viable commercialization, and scope for scaling.
+3. It must use technology in its core product, service, business model, or methodology.
+4. Shareholding by Indian promoters must be at least 51% at the time of application.
+5. The startup must not have received more than Rs. 10 Lakhs of monetary support under any other Central or State Government scheme (excluding competitions/prize money).
+
+Sources:
+- Guidelines For Startup India Seed Fund Scheme
+  Page 2 — Eligibility (https://www.startupindia.gov.in)
+----------------------------------------------------------------------
+```
+
+### Retrieval-Only Mode (No LLM)
+If you wish to test raw chunks without calling OpenAI or when `OPENAI_API_KEY` is not set:
+```powershell
+python -m src.chat_cli --retrieval-only
+```
+
+---
+
+## 6. How to Ingest a Government Scheme PDF
+
+Place official PDFs in `data/raw/` and run the ingestion CLI:
+```powershell
 python -m src.ingest_cli `
-  --pdf data/raw/atal_pension_yojana_guidelines.pdf `
-  --scheme-id APY `
-  --scheme-name "Atal Pension Yojana" `
-  --source-url "https://financialservices.gov.in/beta/en/scheme/atal-pension-yojana" `
-  --last-verified "2026-01-15"
+  --pdf data/raw/Guidelines_for_Startup_India_Seed_Fund_Scheme.pdf `
+  --scheme-id SISFS `
+  --scheme-name "Startup India Seed Fund Scheme" `
+  --source-url "https://www.startupindia.gov.in"
 ```
 
-The pipeline will:
-1. Extract page text using PyMuPDF.
-2. Verify document integrity and detect if pages are scanned.
-3. Clean whitespace while preserving headings, numbers, percentages, currency (`₹`, `Rs.`), and government acronyms.
-4. Partition into semantic sections (`Eligibility`, `Benefits`, `Required Documents`, `Application Process`, `Important Conditions`).
-5. Generate sentence embeddings.
-6. Index points into the Qdrant vector collection.
+The pipeline:
+1. Extracts page text and counts characters/images via PyMuPDF.
+2. Verifies document health and detects scanned/image pages.
+3. Normalizes text while preserving currency (`₹`, `Rs.`), dates, age limits, and statutory terms.
+4. Chunks into logical sections (`Overview`, `Eligibility`, `Benefits`, `Important Conditions`).
+5. Generates 384-dimensional dense vectors using Sentence Transformers.
+6. Stores vector points and provenance metadata into local embedded Qdrant.
 
 ---
 
-## 7. How to Query the Vector Database
+## 7. Automated Testing & Verification
 
-Execute natural language queries using the query CLI:
+Run the full pytest suite (40 unit & integration tests):
 ```powershell
-python -m src.query_cli --query "What are the eligibility criteria and age requirements?" --top-k 3
+pytest -v
 ```
 
-### Output with Complete Source Provenance:
-```
-======================================================================
-QUERY: "What are the eligibility criteria and age requirements?"
-RESULTS RETURNED: 2
-======================================================================
+### Test Coverage Summary:
+- `tests/test_rag.py` (10 tests):
+  - Context builder creates structured source metadata and labeled context blocks.
+  - Missing API key raises `MissingAPIKeyError` safely without exposing secrets.
+  - Empty or below-threshold retrieval completely bypasses the LLM.
+  - Grounding prompt incorporates all 9 critical government assistance tenets.
+  - API errors sanitize secret keys (`[REDACTED_API_KEY]`).
+  - Structured answer validation (`GroundedAnswer` schema).
+  - Mocked end-to-end RAG answer generation.
+- `tests/test_openai_integration.py` (1 test): Live connection test (auto-skipped when `OPENAI_API_KEY` is not present).
+- `tests/test_cleaner.py` (5 tests): Text cleaning and entity preservation.
+- `tests/test_chunking.py` (4 tests): Structure-aware section chunking and fallback.
+- `tests/test_embeddings.py` (5 tests): Embedder initialization, batching, and error handling.
+- `tests/test_vector_store.py` (6 tests): Qdrant lifecycle, upsert, search, and filtering.
+- `tests/test_retrieval.py` (3 tests): Query validation and provenance mapping.
+- `tests/test_end_to_end.py` (1 test): Full PDF-to-retrieval pipeline integration.
 
-[Result 1] Cosine Similarity: 0.8347
-  • Scheme Name   : Atal Pension Yojana (APY)
-  • Section       : Eligibility
-  • Page Number   : 2 (Pages 2-2)
-  • Source URL    : https://financialservices.gov.in/beta/en/scheme/atal-pension-yojana
-  • Document ID   : APY_4bb17d6b
-  • Chunk ID      : APY_4bb17d6b_chunk_005
-  • Text Excerpt  :
-      4. Eligibility Criteria
-      To enroll in Atal Pension Yojana, an applicant must satisfy the following mandatory conditions:
-      a) The applicant must be a citizen of India.
-      b) The applicant must possess an active Savings Bank account or Post Office Savings Bank account.
-      c) The applicant must have an Aadhaar number and a valid mobile number for transaction notifications.
-      d) The applicant must provide nominee details at the time of subscription.
-      5. Age Requirement
-      The minimum entry age for joining APY is 18 years, and the maximum entry age is 40 years.
-```
-
-To output raw JSON:
-```powershell
-python -m src.query_cli --query "How much pension is guaranteed at age 60?" --json
-```
-
----
-
-## 8. Metadata Structure
-Every chunk stored in Qdrant and returned by retrieval maintains this schema:
-
-```json
-{
-  "chunk_id": "APY_4bb17d6b_chunk_005",
-  "document_id": "APY_4bb17d6b",
-  "scheme_id": "APY",
-  "scheme_name": "Atal Pension Yojana",
-  "text": "4. Eligibility Criteria...",
-  "page_start": 2,
-  "page_end": 2,
-  "section": "Eligibility",
-  "source_type": "official",
-  "source_url": "https://financialservices.gov.in/beta/en/scheme/atal-pension-yojana",
-  "last_verified": "2026-01-15"
-}
-```
-
----
-
-## 9. Retrieval Evaluation
-
-The system includes a 10-query benchmark across critical scheme attributes:
-
-| Query ID | Category | Benchmark Query | Expected Section | Hit@1 | Hit@3 |
-|---|---|---|---|---|---|
-| Q01 | eligibility | *What are the mandatory eligibility conditions to join APY?* | Eligibility | Yes | Yes |
-| Q02 | income_limit | *Are income tax payers allowed to enroll in APY or is there an income restriction?* | Eligibility | Yes | Yes |
-| Q03 | age_requirement | *What is the minimum and maximum entry age limit for subscribers?* | Eligibility | Yes | Yes |
-| Q04 | benefits | *What is the guaranteed monthly pension amount received at age 60?* | Benefits | Yes | Yes |
-| Q05 | required_documents | *What documents like Aadhaar and bank account details must be submitted?* | Required Documents | Yes | Yes |
-| Q06 | application_process | *How to apply for APY online through internet banking or offline at a branch?* | Application Process | Yes | Yes |
-| Q07 | important_conditions | *What is the auto-debit penalty for delayed payment and exit rules before age 60?* | Important Conditions | Yes | Yes |
-| Q08 | state_availability | *Is Atal Pension Yojana available in all states and Union Territories across India?* | State Availability | Yes | Yes |
-| Q09 | target_beneficiaries | *Who are the primary target beneficiaries and unorganised sector workers?* | Overview | No (Rank 4) | No (Rank 4) |
-| Q10 | unrelated_query | *What is the best recipe for baking chocolate chip cookies with butter?* | None (Unrelated) | Filtered (<0.05) | - |
-
-### Evaluation Metrics:
-- **Hit@1:** 88.9%
-- **Hit@3:** 88.9%
-- **Hit@5:** 100.0%
-- **Mean Reciprocal Rank (MRR):** 0.9167
-- **Unrelated Query Discrimination:** 100.0% (Score 0.0437, filtered out)
-
-Run evaluation:
+### Milestone 1 Benchmark Evaluation:
+To re-verify retrieval precision across the 10-query benchmark dataset:
 ```powershell
 python -m src.evaluation.evaluate
 ```
+**Current Benchmark Results:**
+- **Hit@1:** 100.0%
+- **Hit@3:** 100.0%
+- **Hit@5:** 100.0%
+- **MRR:** 1.0000
+- **Unrelated Query Discrimination:** 100.0%
 
 ---
 
-## 10. Automated Testing
-Run the complete test suite (30 unit & integration tests):
-```powershell
-pytest tests -v
-```
-
-Tests include:
-- `tests/test_cleaner.py`: Whitespace normalization, entity preservation, hyphenation fixes.
-- `tests/test_ingestion.py`: Missing file handling, 0-byte detection, normal extraction, scanned PDF detection, duplicate prevention.
-- `tests/test_chunking.py`: Section detection, provenance tracking, fallback chunking, empty document handling.
-- `tests/test_embeddings.py`: Model loading, single & batch embeddings, empty input validation.
-- `tests/test_vector_store.py`: In-memory Qdrant, collection creation, upsert, search, metadata filtering.
-- `tests/test_retrieval.py`: Query validation, provenance mapping, threshold filtering.
-- `tests/test_end_to_end.py`: Full workflow (PDF -> Ingestion -> Chunking -> Embedding -> Qdrant -> Retrieval).
-
----
-
-## 11. Known Limitations & Milestone 2 Roadmap
-- **OCR Engine Execution**: Scanned documents are accurately detected and flagged with `SCANNED_OCR_REQUIRED`, but local OCR engines (Tesseract / EasyOCR) are not bundled in Milestone 1 to avoid C++ binary dependencies.
-- **Single Vector Representation**: Embeddings represent dense semantic vectors. Hybrid search (sparse BM25 + dense vectors) can be added in subsequent milestones for exact serial/code lookups.
-- **Next Milestone (Milestone 2)**: FastAPI service layer wrapping the retrieval engine, OCR processing pipeline integration, and connection to the backend service.
+## 8. Milestone Roadmap
+- [x] **Milestone 1**: Standalone RAG Foundation (PyMuPDF, Semantic Chunking, Embeddings, Qdrant Vector DB, Provenance, Benchmark Evaluation).
+- [x] **Milestone 2**: Grounded RAG + OpenAI Responses API (`gpt-5.6-luna`), Context Builder, Citizen Grounding Prompt, Structured Answers, Interactive Chat CLI.
+- [ ] **Milestone 3**: Citizen Profile & Scheme Matching Engine.
+- [ ] **Milestone 4**: Eligibility Rule Engine & Personalized Action Plans.
+- [ ] **Milestone 5**: Full AI Agent Orchestration & Multi-Turn Guidance.
