@@ -36,6 +36,8 @@ class DocumentAnalysisTool(BaseTool):
             (root / "data" / "documents").resolve(),
             (root / "data" / "raw").resolve(),
             (root / "tests" / "fixtures" / "documents").resolve(),
+            (root.parent / "uploads" / "documents").resolve(),
+            (root.parent / "backend" / "uploads" / "documents").resolve(),
         ]
         # Ensure approved directories exist
         for d in self.approved_roots:

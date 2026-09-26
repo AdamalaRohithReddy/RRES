@@ -63,8 +63,9 @@ MOCK_CITIZEN_RECORDS: Dict[str, Dict[str, Any]] = {
 class CitizenProfileTool(BaseTool):
     """Tool allowing the agent to retrieve a citizen's profile attributes from MySQL."""
 
-    def __init__(self, repository: Optional[CitizenRepository] = None):
+    def __init__(self, repository: Optional[CitizenRepository] = None, default_citizen_id: Optional[str] = None):
         self._repo = repository or CitizenRepository()
+        self.default_citizen_id = default_citizen_id
 
     @property
     def name(self) -> str:
@@ -91,10 +92,12 @@ class CitizenProfileTool(BaseTool):
             "required": [],
         }
 
-    def execute(self, citizen_id: Optional[str] = "demo-user", **kwargs) -> Dict[str, Any]:
+    def execute(self, citizen_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Fetch citizen profile from MySQL repository or structured unavailable notice."""
         settings = get_settings()
-        raw_id = citizen_id or "demo-user"
+        raw_id = citizen_id or self.default_citizen_id or "demo-user"
+        if raw_id == "demo-user" and self.default_citizen_id:
+            raw_id = self.default_citizen_id
 
         # 1. Strict regex validation for citizen_id
         try:

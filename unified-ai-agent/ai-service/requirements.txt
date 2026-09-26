@@ -12,3 +12,7 @@ openai>=1.0.0
 sqlalchemy>=2.0.0
 pymysql>=1.1.0
 alembic>=1.13.0
+
+# Milestone 9: Internal FastAPI Layer
+fastapi>=0.110.0
+uvicorn>=0.30.0

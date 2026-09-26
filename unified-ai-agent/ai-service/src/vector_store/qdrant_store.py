@@ -1,4 +1,4 @@
-"""Qdrant Vector Store Implementation for Scheme Chunks."""
+import os
 import uuid
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
@@ -13,6 +13,14 @@ from qdrant_client.models import (
 
 from src.chunking.models import DocumentChunk
 from src.config.settings import get_settings
+
+
+_client_cache: Dict[str, QdrantClient] = {}
+
+
+def clear_qdrant_client_cache() -> None:
+    """Clear cached QdrantClient instances."""
+    _client_cache.clear()
 
 
 class QdrantStoreError(Exception):
@@ -54,7 +62,10 @@ class QdrantVectorStore:
             elif self.path == ":memory:":
                 self.client = QdrantClient(location=":memory:")
             else:
-                self.client = QdrantClient(path=str(self.path))
+                norm_path = os.path.abspath(str(self.path))
+                if norm_path not in _client_cache:
+                    _client_cache[norm_path] = QdrantClient(path=str(self.path))
+                self.client = _client_cache[norm_path]
         except Exception as e:
             target = self.url or self.path
             raise QdrantUnavailableError(

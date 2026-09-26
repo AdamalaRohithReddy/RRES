@@ -1,5 +1,5 @@
 """Sentence Transformers Embedding Implementation."""
-from typing import List, Optional
+from typing import List, Optional, Dict, Tuple
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
@@ -81,9 +81,23 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             raise EmbeddingError(f"Error generating batch embeddings: {e}") from e
 
 
+_embedder_cache: Dict[Tuple[str, str], BaseEmbedder] = {}
+
+
 def get_embedder(
     model_name: Optional[str] = None,
     device: Optional[str] = None,
 ) -> BaseEmbedder:
-    """Factory function to instantiate the configured embedder."""
-    return SentenceTransformerEmbedder(model_name=model_name, device=device)
+    """Factory function to instantiate the configured embedder (cached as singleton)."""
+    settings = get_settings()
+    m = model_name or settings.embedding_model_name
+    d = device or settings.embedding_device
+    key = (m, d)
+    if key not in _embedder_cache:
+        _embedder_cache[key] = SentenceTransformerEmbedder(model_name=m, device=d)
+    return _embedder_cache[key]
+
+
+def clear_embedder_cache() -> None:
+    """Clear cached embedder instances."""
+    _embedder_cache.clear()

@@ -78,6 +78,11 @@ class Settings:
         self.data_gov_in_api_key: Optional[str] = os.getenv("DATA_GOV_IN_API_KEY", None)
         self.run_live_gov_api_tests: bool = os.getenv("RUN_LIVE_GOV_API_TESTS", "false").lower() in ("true", "1", "yes")
 
+        # Internal AI Service API Settings (Milestone 9)
+        self.ai_service_host: str = os.getenv("AI_SERVICE_HOST", "127.0.0.1")
+        self.ai_service_port: int = int(os.getenv("AI_SERVICE_PORT", "8000"))
+        self.ai_service_internal_key: str = os.getenv("AI_SERVICE_INTERNAL_KEY", "dev-internal-secret-key-12345")
+
         # Ensure directories exist
         self.raw_data_dir.mkdir(parents=True, exist_ok=True)
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)

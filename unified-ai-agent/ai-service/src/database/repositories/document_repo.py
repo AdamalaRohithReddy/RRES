@@ -161,3 +161,31 @@ class DocumentRepository:
 
         with get_db_session() as s:
             return _execute(s)
+
+    def update_document_ai_fields(
+        self,
+        document_id: int,
+        apparent_type: Optional[str] = None,
+        extracted_text: Optional[str] = None,
+    ) -> bool:
+        """Narrowly scoped update to AI-processing fields only (M9 rule 13).
+        
+        Strictly updates apparent_type and extracted_text for an existing document.
+        Does not modify filename, storage_path, citizen_id, or lifecycle status.
+        """
+        def _execute(s: Session) -> bool:
+            doc = s.get(DocumentModel, document_id)
+            if not doc:
+                return False
+            if apparent_type is not None:
+                doc.apparent_type = apparent_type
+            if extracted_text is not None:
+                doc.extracted_text = extracted_text
+            s.flush()
+            return True
+
+        if self._session is not None:
+            return _execute(self._session)
+
+        with get_db_session() as s:
+            return _execute(s)

@@ -1,0 +1,5 @@
+com\unifiedai\backend\ApplicationServiceTest.class
+com\unifiedai\backend\AuthControllerTest.class
+com\unifiedai\backend\PythonAiServiceClientTest.class
+com\unifiedai\backend\DocumentServiceTest.class
+com\unifiedai\backend\JwtTokenProviderTest.class
